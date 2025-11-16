@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Chat Portal Libras (embed)</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial;margin:12px;background:#f6f7fb}
+.container{max-width:820px;margin:0 auto;background:#fff;padding:16px;border-radius:8px}
+#chat{height:360px;overflow:auto;border:1px solid #eee;padding:12px;border-radius:8px;background:#fafafa}
+.msg{margin:8px 0}
+.user{text-align:right}.user .bubble{display:inline-block;background:#0066ff;color:white;padding:8px 12px;border-radius:12px}
+.bot .bubble{display:inline-block;background:#efefef;color:#111;padding:8px 12px;border-radius:12px}
+.controls{display:flex;gap:8px;margin-top:8px}
+input[type=text]{flex:1;padding:10px;border-radius:8px;border:1px solid #ddd}
+button{padding:10px 12px;border-radius:8px;border:1px solid #ccc;background:#fff}
+</style>
+</head>
+<body>
+<div class="container">
+<h3>Chat — Base: PDFs no Google Drive</h3>
+<button id="syncBtn">Sincronizar Drive</button>
+<div id="status" style="margin-top:6px;color:#666">Status: não sincronizado</div>
+<div id="chat"></div>
+<div class="controls">
+<input id="q" type="text" placeholder="Pergunte sobre a empresa..." />
+<button id="ask">Perguntar</button>
+</div>
+</div>
+<script>
+const chat = document.getElementById('chat');
+const qIn = document.getElementById('q');
+function add(role, text){
+  const d=document.createElement('div'); d.className='msg '+(role==='user'?'user':'bot');
+  d.innerHTML = '<div class="bubble">'+text+'</div>'; chat.appendChild(d); chat.scrollTop=chat.scrollHeight;
+}
+document.getElementById('syncBtn').addEventListener('click', async ()=>{
+  document.getElementById('status').textContent='Sincronizando...';
+  try{
+    const r=await fetch('/api/sync-drive',{method:'POST'}); const j=await r.json();
+    document.getElementById('status').textContent='Sincronizado: '+(j.indexedFiles||0)+' arquivos, '+(j.indexedChunks||0)+' trechos';
+    add('bot','Sincronização concluída.');
+  }catch(e){ document.getElementById('status').textContent='Erro: '+e.message; add('bot','Erro ao sincronizar'); }
+});
+document.getElementById('ask').addEventListener('click', ask);
+qIn.addEventListener('keydown', e=>{ if(e.key==='Enter') ask(); });
+async function ask(){
+  const q=qIn.value.trim(); if(!q) return; add('user', q); qIn.value='';
+  add('bot','Buscando...');
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    const j=await r.json();
+    // remove last 'Buscando...'
+    const bots=document.querySelectorAll('.msg.bot'); if(bots.length) bots[bots.length-1].remove();
+    add('bot', j.answer || JSON.stringify(j));
+    if(j.context){ j.context.forEach(c=> add('bot', '<b>Fonte:</b> '+c.filename+' — '+c.excerpt)); }
+  }catch(e){ add('bot','Erro: '+e.message); }
+}
+</script>
+</body>
+</html>
